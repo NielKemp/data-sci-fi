@@ -16,10 +16,8 @@ load("lesson 1/rawData/movielens-small.Rdata")
 
 
 library(tidyverse)
-library(rlang)
 
-
-
+ratings <- left_join (ratings,movies)
 
 ratings %>% group_by(userId)%>%summarize(count=n()) %>%arrange(desc(count))
 
@@ -31,4 +29,13 @@ my_movies <- movies_frq$movieId[101:120]
 
 ratings_red <-ratings%>%filter(userId %in% my_users,movieId %in% my_movies)
 
-install.packages("rlang", type = "source")
+ratings_red <- droplevels(ratings_red)
+levels(ratings_red$title)
+
+viewed_movies <- ratings_red %>% 
+  complete(userId, title) %>% 
+  mutate(seen = ifelse(is.na(rating), 0, 1)) %>% 
+  select(userId, title, seen) %>% 
+  
+save(ratings_red,viewed_movies,file = "lesson 1/recommender.RData")  
+  spread(key = title, value = seen)
