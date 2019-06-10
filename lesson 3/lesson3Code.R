@@ -141,6 +141,73 @@ head(movies_user)
 movieSimilarities = matrix(0,nrow=20,ncol=20)
 for (i in 1:19){
   for (j in (i+1):20){
-    movieSimilarities[i,j] <- cosineSim(viewed_movies[,1],viewed_movies[,j])
+    movieSimilarities[i,j] <- cosineSim(viewed_movies[,i],viewed_movies[,j])
   }
 }
+
+movieSimilarities <- movieSimilarities + t(movieSimilarities)
+diag(movieSimilarities) <- 0
+row.names(movieSimilarities) <- colnames(viewed_movies)
+colnames(movieSimilarities) <- colnames(viewed_movies)
+
+sort(movieSimilarities[,"Apocalypse Now (1979)"], decreasing = TRUE)
+
+which(viewed_movies['222',] ==1)
+head(viewed_movies)
+
+
+#implement main idea behind item-based filter
+userSeen <- ratings_red %>% filter(userId == 222) %>% select(title) %>%unlist() %>% as.character()
+
+
+head(userSeen)
+head(movieSimilarities)
+movieSimilarities[,userSeen]
+
+
+apply(movieSimilarities[,userSeen],1,sum)
+
+
+#one neat calculation
+userScores <- tibble(title = row.names(movieSimilarities),
+                     score = apply(movieSimilarities[,userSeen],1,sum),
+                     seen = viewed_movies['222',])
+
+userScores %>% filter(seen==0) %>% arrange(desc(score))
+
+
+#A SIMPLE FUNCTION TO GENERATE AN ITEM-BASED CF RECCOMENDATAION FOR ANY USER
+itemBasedRecc <- function(user, movieSimilarities, viewed_movies){
+  user <- ifelse(is.character(user),user,as.character(user))
+  
+  userSeen <- row.names(movieSimilarities)[viewed_movies[user,]==TRUE]
+  user_scores <- tibble(title = row.names(movieSimilarities),
+                           score = apply(movieSimilarities[,userSeen],1,sum),
+                           seen = viewed_movies[user,])
+  
+  user_scores %>%
+    filter(seen==0) %>%
+    arrange(desc(score))%>%
+    select(-seen)
+}
+
+itemBasedRecc(user = 222, movieSimilarities = movieSimilarities, viewed_movies = viewed_movies)
+
+#now do it for all users
+lapply(sorted_my_users, itemBasedRecc, movieSimilarities,viewed_movies)
+
+#COLLABORATIVE FILTERING WITH MATRIX FACTORIZATION
+#perform collaborative filtering based on matrix factorization (a topic from linear algebra)
+#also called "matrix decomposition"
+
+#setup data in CSV for Excel example
+ratings_wide <- ratings_red %>% select(userId,title,rating) %>% complete(userId, title) %>% spread(key = title, value = rating)
+head(ratings_wide)
+head(ratings_red)
+
+#convert data into matrix form
+sorted_my_users <- as.character(unlist(ratings_wide[,1]))
+ratings_wide <- as.matrix(ratings_wide[,-1])
+row.names(ratings_wide) <- sorted_my_users
+
+write.csv(ratings_wide,"lesson 3/ratingsForExelExample.csv")
