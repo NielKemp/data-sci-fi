@@ -211,3 +211,102 @@ ratings_wide <- as.matrix(ratings_wide[,-1])
 row.names(ratings_wide) <- sorted_my_users
 
 write.csv(ratings_wide,"lesson 3/ratingsForExelExample.csv")
+
+#Defining a function that will compuyte the squared differences between observed and predicted movie ratings
+
+reccAccuracy <- function(x, observed_ratings){
+  
+  # extract user and movie factors from parameter vector (x)
+  # the first 75 elements are latent factors for users, the rest are for movies
+  
+  userFactors <- matrix(x[1:75],15,5)
+  movieFactors <- matrix(x[76:175],5,20)
+  
+  #get predictions from dot products of respective user and movie factor
+  predictedRatings <- userFactors  %*% movieFactors
+
+  errors <- (observed_ratings - predictedRatings)^2
+  
+  sqrt(mean(errors[!is.na(observed_ratings)])) #only use rated movies
+}
+
+#optimize the values in the user & movie latent factors, choosing them so that the rmse is a minimum
+#use optim(), the built in numerical optimizer in R.
+
+set.seed(10)
+#optimization step
+rec1 <- optim(par = runif(175),reccAccuracy, observed_ratings = ratings_wide, control = list(maxit=100000))
+
+rec1$converge
+rec1$value
+#note, it doesn't converge, run for longer or use different solving algorithm 
+
+#extract optimal user factors
+userFactors <- matrix(rec1$par[1:75],15,5)
+head(userFactors)
+
+#extract optimal movie factors
+movieFactors  <- matrix(rec1$par[76:175],5,20)
+head(movieFactors)
+
+#we can get predicted movie ratings for any user, by taking the appropriate dot product of user and movie factors.
+#predictions for user 1:
+
+predicted_ratings <- userFactors %*% movieFactors
+rbind(round(predicted_ratings[1,],1),as.numeric(ratings_wide[1,]))
+
+
+#ADDING L2 REGULARIZATION
+#adds a penalty term to the function that we're trying to minimize
+
+#rewrite accuracy function to make use of L2 Regularization
+evaluateFitL2 <- function(x,observed_ratings,lambda){
+  
+  userFactors <- matrix(x[1:75],15,5)
+  movieFactors <- matrix(x[76:175],5,20)
+
+  predictedRatings <- userFactors %*% movieFactors
+  
+  errors <- (observed_ratings - predictedRatings)^2
+  
+  penalty <- sqrt(sum(userFactors ^2, movieFactors ^2))
+  
+  accuracy <- sqrt(mean(errors[!is.na(observed_ratings)]))+lambda*penalty
+  
+  return(accuracy)
+}
+
+set.seed(10)
+#optimization step
+rec2 <- optim(par = runif(175), evaluateFitL2, lambda = 3e-2, observed_ratings = ratings_wide, control = list(maxit = 100000))
+rec2$converge
+rec2$value
+
+rbind(round(predicted_ratings[1,],1),as.numeric(ratings_wide[1,]))
+
+#ADDING BIAS TERMS
+#Bias terms are additive factors that model the fact that some users are more generous than others
+#and that some movies are better than others.
+
+evaluateFitL2Bias <- function(x,observed_ratings,lambda){
+  
+  userFactors <- matrix(x[1:75],15,5)
+  movieFactors <- matrix(x[76:175],5,20)
+  
+  userBias <- matrix(x[176:190],nrow = 15, ncol = 20)
+  movieBias <- t(matrix(x[191:210], nrow = 20, ncol = 15))
+  
+  predictedRatings <- userFactors %*% movieFactors + userBias +  movieBias
+
+  errors <- (observed_ratings - predictedRatings) ^2
+  
+  penalty <- sqrt(sum(userFactors ^2, movieFactors^2))
+  
+  sqrt(mean(errors[!is.na(observed_ratings)])) + lambda*penalty
+  }
+
+#rerun
+set.seed(10)
+rec3 <- optim(par = runif(220),evaluateFitL2Bias, observed_ratings = ratings_wide, lambda = 3e-2, control = list(maxit = 100000))
+rec3$converge
+rec3$value
